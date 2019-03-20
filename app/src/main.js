@@ -1,4 +1,4 @@
-const {app, dialog, globalShortcut, shell, BrowserWindow, Menu} = require('electron');
+const {app, dialog, globalShortcut, protocol, shell, BrowserWindow, Menu} = require('electron');
 const {autoUpdater} = require('electron-updater');
 
 const path = require('path');
@@ -10,11 +10,10 @@ const log = require('electron-log');
 log.transports.file.level = 'debug';
 
 // Determine which environment we're running in.
-const isDev = require('electron-is-dev');
-const isDebug = isDev && process.argv.includes('--debug');
+const isDebug = !app.isPackaged && process.argv.includes('--debug');
 
-if (isDev) {
-  process.env.ELECTRON_IS_DEV = isDev;
+if (!app.isPackaged) {
+  process.env.ELECTRON_IS_DEV = !app.isPackaged;
 
   // this allows scripts to add this to module.paths if they want to pick up
   // native deps built for electron out of opensphere-electron/app/node_modules
@@ -28,12 +27,12 @@ if (isDev) {
 const config = require('config');
 
 // Determine the location of OpenSphere.
-const osPath = isDev ?
+const osPath = !app.isPackaged ?
     path.resolve('..', 'opensphere') :
     path.join(process.resourcesPath, 'app.asar', 'opensphere');
 
 // Determine the location of OpenSphere's index.html.
-const osIndexPath = isDebug || !isDev ?
+const osIndexPath = isDebug || !!app.isPackaged ?
     path.join(osPath, 'index.html') :
     path.join(osPath, 'dist', 'opensphere', 'index.html');
 
@@ -70,9 +69,7 @@ const createMainWindow = function() {
     // Don't throttle animations/timers when backgrounded.
     backgroundThrottling: false,
     // Use native window.open so external windows can access their parent.
-    nativeWindowOpen: true,
-    // Run the preload script before other scripts on the page.
-    preload: path.join(__dirname, 'preload.js')
+    nativeWindowOpen: true
   };
 
   // Load additional preferences from config.
@@ -102,7 +99,7 @@ const createMainWindow = function() {
     callback({cancel: false, responseHeaders: details.responseHeaders});
   });
 
-  mainWindow.webContents.on('new-window', function(event, url, frameName) {
+  mainWindow.webContents.on('new-window', function(event, url, frameName, disposition, options, additionalFeatures) {
     // Any path outside of the application should be opened in the system browser
     // Reasons:
     //   1. That's what the user expects
@@ -147,6 +144,18 @@ const createMainWindow = function() {
   });
 };
 
+//
+// allow the file:// protocol to be used by the fetch API
+//
+protocol.registerSchemesAsPrivileged([
+  {
+    scheme: 'file',
+    options: {
+      bypassCSP: true
+    }
+  }
+]);
+
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
@@ -161,7 +170,7 @@ app.on('ready', function() {
   // Launch OpenSphere.
   createMainWindow();
 
-  if (!isDev) {
+  if (!!app.isPackaged) {
     // Allow opening Dev Tools via shortcut.
     const shortcut = process.platform === 'darwin' ? 'Alt+Command+I' : 'Ctrl+Shift+I';
     globalShortcut.register(shortcut, function() {

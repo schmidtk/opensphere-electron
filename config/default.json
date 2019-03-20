@@ -23,7 +23,15 @@
       //
       // This can be swapped back for security if Electron fixes the crashing issue,
       // but code changes will still need to be made to those plugins as well.
-      "nodeIntegration": true
+      "nodeIntegration": true,
+      //
+      // Disable context isolation until it can be better tested for impacts on the application.
+      //
+      // For more details, see:
+      //
+      // https://electronjs.org/docs/tutorial/security#3-enable-context-isolation-for-remote-content
+      //
+      "contextIsolation": false
     }
   }
 }
